@@ -4,6 +4,8 @@ import pieces.*;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
@@ -27,6 +29,12 @@ public class Board extends JPanel {
     private boolean isWhiteToMove = true;
     private boolean isGameOver = false;
 
+    // Timer variables
+    private Timer whiteTimer;
+    private Timer blackTimer;
+    private int whiteTimeRemaining = 600; // 10 minutes in seconds
+    private int blackTimeRemaining = 600; // 10 minutes in seconds
+
     public Board() {
         this.setPreferredSize(new Dimension(cols * tileSize, rows *tileSize));
 
@@ -34,45 +42,77 @@ public class Board extends JPanel {
         this.addMouseMotionListener(input);
 
         addPieces();
+
+        // Initialize timers
+        whiteTimer = new Timer(1000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                whiteTimeRemaining--;
+                if (whiteTimeRemaining <= 0) {
+                    isGameOver = true;
+                    whiteTimer.stop();
+                    blackTimer.stop();
+                    System.out.println("Black Wins on Time!");
+                }
+                repaint();
+            }
+        });
+
+        blackTimer = new Timer(1000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                blackTimeRemaining--;
+                if (blackTimeRemaining <= 0) {
+                    isGameOver = true;
+                    whiteTimer.stop();
+                    blackTimer.stop();
+                    System.out.println("White Wins on Time!");
+                }
+                repaint();
+            }
+        });
+
+        // Start the timer for white
+        whiteTimer.start();
     }
 
     public Piece getPiece(int col, int row) {
-
         for (Piece piece : pieceList) {
             if (piece.col == col && piece.row == row) {
                 return piece;
             }
         }
-
         return null;
     }
 
-
     public void makeMove(Move move) {
-
         if (move.piece.name.equals("Pawn")){
             movePawn(move);
         } else if (move.piece.name.equals("King")) {
             moveKing((move));
         }
-            move.piece.col = move.newCol;
-            move.piece.row = move.newRow;
-            move.piece.xPos = move.newCol * tileSize;
-            move.piece.yPos = move.newRow * tileSize;
+        move.piece.col = move.newCol;
+        move.piece.row = move.newRow;
+        move.piece.xPos = move.newCol * tileSize;
+        move.piece.yPos = move.newRow * tileSize;
+        move.piece.isFirstMove = false;
+        capture(move.capture);
 
-            move.piece.isFirstMove = false;
+        isWhiteToMove = !isWhiteToMove;
 
+        // Switch timers
+        if (isWhiteToMove) {
+            blackTimer.stop();
+            whiteTimer.start();
+        } else {
+            whiteTimer.stop();
+            blackTimer.start();
+        }
 
-            capture(move.capture);
-
-            isWhiteToMove = !isWhiteToMove;
-
-            updateGameState();
-
+        updateGameState();
     }
 
     private void moveKing (Move move) {
-
         if (Math.abs(move.piece.col - move.newCol) == 2){
             Piece rook;
             if (move.piece.col < move.newCol) {
@@ -84,11 +124,9 @@ public class Board extends JPanel {
             }
             rook.xPos = rook.col * tileSize;
         }
-
     }
 
     private void movePawn(Move move) {
-
         //en passant
         int colorIndex = move.piece.isWhite ? 1 : -1;
 
@@ -106,7 +144,6 @@ public class Board extends JPanel {
         if (move.newRow == colorIndex) {
             promotePawn(move);
         }
-
     }
 
     private void promotePawn(Move move){
@@ -119,31 +156,24 @@ public class Board extends JPanel {
     }
 
     public boolean isValidMove (Move move) {
-
         if (isGameOver) {
             return false;
         }
-
         if (move.piece.isWhite != isWhiteToMove) {
             return false;
         }
-
         if (sameTeam(move.piece, move.capture)) {
             return false;
         }
-
         if (!move.piece.isValidMovement(move.newCol, move.newRow)) {
             return false;
         }
         if (move.piece.moveCollidesWithPiece(move.newCol, move.newRow)) {
             return false;
         }
-
         if (checkScanner.isKingChecked(move)) {
             return false;
         }
-
-
         return true;
     }
 
@@ -152,7 +182,6 @@ public class Board extends JPanel {
             return false;
         }
         return p1.isWhite == p2.isWhite;
-
     }
 
     public int getTileNum(int col, int row) {
@@ -167,7 +196,6 @@ public class Board extends JPanel {
         }
         return null;
     }
-
 
     public void addPieces() {
         pieceList.add(new Rook(this, 0, 0, false));
@@ -216,9 +244,13 @@ public class Board extends JPanel {
                 System.out.println("Stalemate!");
             }
             isGameOver = true;
+            whiteTimer.stop();
+            blackTimer.stop();
         } else if (insufficientMaterial(true) && insufficientMaterial(false)) {
             System.out.println("Insufficient Material!");
             isGameOver = true;
+            whiteTimer.stop();
+            blackTimer.stop();
         }
     }
 
@@ -236,7 +268,6 @@ public class Board extends JPanel {
     public void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g;
 
-
         //warna board
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols; c++){
@@ -248,18 +279,27 @@ public class Board extends JPanel {
         if (selectedPiece != null)
             for (int r = 0; r < rows; r++)
                 for (int c = 0; c < cols; c++) {
-                if (isValidMove(new Move(this, selectedPiece, c, r))) {
-                    g2d.setColor(new Color(68, 180, 57, 190));
-                    g2d.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+                    if (isValidMove(new Move(this, selectedPiece, c, r))) {
+                        g2d.setColor(new Color(68, 180, 57, 190));
+                        g2d.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+                    }
                 }
-            }
 
         //warna bidak
         for (Piece piece : pieceList) {
             piece.paint(g2d);
         }
 
+        // Draw the timers
+        g2d.setColor(Color.BLACK);
+        g2d.setFont(new Font("Arial", Font.BOLD, 20));
+        g2d.drawString("White: " + formatTime(whiteTimeRemaining), 10, 30);
+        g2d.drawString("Black: " + formatTime(blackTimeRemaining), 10, 60);
     }
 
-
+    private String formatTime(int seconds) {
+        int mins = seconds / 60;
+        int secs = seconds % 60;
+        return String.format("%02d:%02d", mins, secs);
+    }
 }
