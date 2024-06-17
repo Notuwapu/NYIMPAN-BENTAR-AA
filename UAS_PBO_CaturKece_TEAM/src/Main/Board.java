@@ -30,13 +30,15 @@ public class Board extends JPanel {
     private boolean isGameOver = false;
 
     // Timer variables
-    private Timer whiteTimer;
-    private Timer blackTimer;
+    private final Timer whiteTimer;
+    private final Timer blackTimer;
     private int whiteTimeRemaining = 600; // 10 minutes in seconds
     private int blackTimeRemaining = 600; // 10 minutes in seconds
 
+    private TimerPanel timerPanel;
+
     public Board() {
-        this.setPreferredSize(new Dimension(cols * tileSize, rows *tileSize));
+        this.setPreferredSize(new Dimension(cols * tileSize, rows * tileSize));
 
         this.addMouseListener(input);
         this.addMouseMotionListener(input);
@@ -47,33 +49,45 @@ public class Board extends JPanel {
         whiteTimer = new Timer(1000, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                whiteTimeRemaining--;
-                if (whiteTimeRemaining <= 0) {
-                    isGameOver = true;
-                    whiteTimer.stop();
-                    blackTimer.stop();
-                    System.out.println("Black Wins on Time!");
+                if (isWhiteToMove && !isGameOver) {
+                    whiteTimeRemaining--;
+                    if (whiteTimeRemaining <= 0) {
+                        isGameOver = true;
+                        whiteTimer.stop();
+                        blackTimer.stop();
+                        System.out.println("Black Wins on Time!");
+                    }
+                    if (timerPanel != null) {
+                        timerPanel.updateWhiteTimer(formatTime(whiteTimeRemaining));
+                    }
                 }
-                repaint();
             }
         });
 
         blackTimer = new Timer(1000, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                blackTimeRemaining--;
-                if (blackTimeRemaining <= 0) {
-                    isGameOver = true;
-                    whiteTimer.stop();
-                    blackTimer.stop();
-                    System.out.println("White Wins on Time!");
+                if (!isWhiteToMove && !isGameOver) {
+                    blackTimeRemaining--;
+                    if (blackTimeRemaining <= 0) {
+                        isGameOver = true;
+                        whiteTimer.stop();
+                        blackTimer.stop();
+                        System.out.println("White Wins on Time!");
+                    }
+                    if (timerPanel != null) {
+                        timerPanel.updateBlackTimer(formatTime(blackTimeRemaining));
+                    }
                 }
-                repaint();
             }
         });
 
         // Start the timer for white
         whiteTimer.start();
+    }
+
+    public void setTimerPanel(TimerPanel timerPanel) {
+        this.timerPanel = timerPanel;
     }
 
     public Piece getPiece(int col, int row) {
@@ -239,39 +253,24 @@ public class Board extends JPanel {
         Piece king = findKing(isWhiteToMove);
         if (checkScanner.isGameOver(king)) {
             if (checkScanner.isKingChecked(new Move(this, king, king.col, king.row))) {
-                System.out.println(isWhiteToMove ? "Black Wins!" : "White Wins!" );
+                System.out.println(isWhiteToMove ? "Black Wins!" : "White Wins!");
             } else {
                 System.out.println("Stalemate!");
             }
             isGameOver = true;
             whiteTimer.stop();
             blackTimer.stop();
-        } else if (insufficientMaterial(true) && insufficientMaterial(false)) {
-            System.out.println("Insufficient Material!");
-            isGameOver = true;
-            whiteTimer.stop();
-            blackTimer.stop();
         }
-    }
-
-    private boolean insufficientMaterial (boolean isWhite) {
-        ArrayList<String> names = pieceList.stream()
-                .filter(p -> p.isWhite == isWhite)
-                .map(p -> p.name)
-                .collect(Collectors.toCollection(ArrayList::new));
-        if (names.contains("Queen") || names.contains("Rook") || names.contains("Pawn")) {
-            return false;
-        }
-        return names.size() < 3;
     }
 
     public void paintComponent(Graphics g) {
+        super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
 
         //warna board
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols; c++){
-                g2d.setColor((c + r) %2 == 0 ? new Color(227, 198, 181) : new Color(157, 105, 53));
+                g2d.setColor((c + r) % 2 == 0 ? new Color(227, 198, 181) : new Color(157, 105, 53));
                 g2d.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
             }
 
@@ -289,12 +288,6 @@ public class Board extends JPanel {
         for (Piece piece : pieceList) {
             piece.paint(g2d);
         }
-
-        // Draw the timers
-        g2d.setColor(Color.BLACK);
-        g2d.setFont(new Font("Arial", Font.BOLD, 20));
-        g2d.drawString("White: " + formatTime(whiteTimeRemaining), 10, 30);
-        g2d.drawString("Black: " + formatTime(blackTimeRemaining), 10, 60);
     }
 
     private String formatTime(int seconds) {
